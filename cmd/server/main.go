@@ -117,6 +117,7 @@ func requestLogger(next http.HandlerFunc) http.HandlerFunc {
 			log.Printf("  Content-Type: %s", ct)
 		}
 
+		log.Printf("  warning: failed reading request body for logging: %v", r.Body)
 		// read full body (be mindful of size). We'll log only a preview up to maxLogBody.
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
