@@ -110,10 +110,10 @@ func (s *Server) CreatePayment(w http.ResponseWriter, r *http.Request) {
 }
 
 // PaymentCallback handles incoming callbacks from PG (server-to-server POST) and browser redirects.
-// - POST: attempt to parse form values or JSON, decrypt encrypted fields, store result keyed by orderNo,
-//   and reply with JSON {"status":"ok"} for server callbacks.
-// - GET: called when PG redirects the customer via browser. If orderNo query param present and we have
-//   a stored result, redirect the browser to FRONTEND_URL/payment/result?orderNo=... so frontend can fetch it.
+//   - POST: attempt to parse form values or JSON, decrypt encrypted fields, store result keyed by orderNo,
+//     and reply with JSON {"status":"ok"} for server callbacks.
+//   - GET: called when PG redirects the customer via browser. If orderNo query param present and we have
+//     a stored result, redirect the browser to FRONTEND_URL/payment/result?orderNo=... so frontend can fetch it.
 func (s *Server) PaymentCallback(w http.ResponseWriter, r *http.Request) {
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
@@ -125,8 +125,8 @@ func (s *Server) PaymentCallback(w http.ResponseWriter, r *http.Request) {
 		// parse both form and json
 		inMap := map[string]string{}
 		ct := r.Header.Get("Content-Type")
-		
-		log.Printf("incoming callback :%s", inMap)
+
+		log.Printf("incoming callback :%s", map[string]string{})
 
 		if strings.HasPrefix(ct, "application/json") {
 			var j map[string]any
