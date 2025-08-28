@@ -7,8 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/joho/godotenv"
 	"payment-backend/internal/httpserver"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -61,9 +62,9 @@ func corsMiddleware(next http.Handler) http.Handler {
 					}
 				} else {
 					// development: allow localhost and 127.0.0.1 (any port)
-					if strings.EqualFold(host, "localhost") || strings.EqualFold(host, "127.0.0.1") {
-						allowed = true
-					}
+					//if strings.EqualFold(host, "localhost") || strings.EqualFold(host, "127.0.0.1") || strings.EqualFold(host, "*"){
+					allowed = true
+					//}
 				}
 			}
 		}
