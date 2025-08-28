@@ -55,11 +55,12 @@ func corsMiddleware(next http.Handler) http.Handler {
 		if origin != "" {
 			// Parse origin to get hostname (works for "http(s)://host:port")
 			if u, err := url.Parse(origin); err == nil && u.Host != "" {
-				host := u.Hostname() // strip port if present
+				//host := u.Hostname() // strip port if present
 				if prod {
-					if strings.EqualFold(host, "go.dorira.com") {
-						allowed = true
-					}
+					//if strings.EqualFold(host, "go.dorira.com") {
+
+					allowed = true
+					//	}
 				} else {
 					// development: allow localhost and 127.0.0.1 (any port)
 					//if strings.EqualFold(host, "localhost") || strings.EqualFold(host, "127.0.0.1") || strings.EqualFold(host, "*"){
