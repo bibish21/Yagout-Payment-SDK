@@ -135,9 +135,9 @@ func requestLogger(next http.HandlerFunc) http.HandlerFunc {
 		if len(bodyBytes) == 0 {
 			log.Printf("  Body: <empty>")
 		} else if len(bodyBytes) <= maxLogBody {
-			log.Printf("  Body (%d bytes):\n%s", len(bodyBytes), string(bodyBytes))
+			log.Printf("  Original Body (%d bytes):\n%s", len(bodyBytes), string(bodyBytes))
 		} else {
-			log.Printf("  Body (truncated preview %d bytes of %d):\n%s", maxLogBody, len(bodyBytes), string(bodyBytes[:maxLogBody]))
+			log.Printf("  Originall Body (truncated preview %d bytes of %d):\n%s", maxLogBody, len(bodyBytes), string(bodyBytes[:maxLogBody]))
 		}
 
 		next(w, r)
