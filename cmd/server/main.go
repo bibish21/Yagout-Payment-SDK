@@ -117,7 +117,6 @@ func requestLogger(next http.HandlerFunc) http.HandlerFunc {
 			log.Printf("  Content-Type: %s", ct)
 		}
 
-		log.Printf("  warning: failed reading request body for logging: %v", r.Body)
 		// read full body (be mindful of size). We'll log only a preview up to maxLogBody.
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -131,6 +130,13 @@ func requestLogger(next http.HandlerFunc) http.HandlerFunc {
 		// restore the body so next handler can read it
 		_ = r.Body.Close()
 		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+		// Log the raw data
+		log.Printf("Payment callback received: %s", string(bodyBytes))
+
+		// Log additional request details (optional)
+		log.Printf("Request details - Method: %s, URL: %s, Headers: %+v",
+			r.Method, r.URL.String(), r.Header)
 
 		// log preview or full body
 		if len(bodyBytes) == 0 {
