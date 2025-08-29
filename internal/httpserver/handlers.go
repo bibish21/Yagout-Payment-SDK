@@ -153,7 +153,7 @@ func (s *Server) PaymentCallback(w http.ResponseWriter, r *http.Request) {
 
 		// attempt to decrypt fields using SDK helper
 		decrypted, errs := s.sdk.DecryptCallbackMap(inMap)
-		log.Printf("decrypted %s from", decrypted)
+		log.Printf("decrypted %+v", decrypted)
 
 		// try to detect orderNo key (case-insensitive variants) from decrypted map
 		orderNo := ""
