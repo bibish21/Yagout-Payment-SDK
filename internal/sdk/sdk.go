@@ -176,16 +176,18 @@ func removePKCS7Padding(b []byte, blockSize int) ([]byte, error) {
 // --- regex validators (precompiled where helpful) ---
 
 var (
-	reAlphaExactMax    = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[A-Za-z]{1,%d}$`, n)) }
-	reAlphaOptMax      = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[A-Za-z]{0,%d}$`, n)) }
-	reNumExactMax      = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[0-9]{1,%d}$`, n)) }
-	reNumOptMax        = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[0-9]{0,%d}$`, n)) }
-	reAlnumExactMax    = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9]{1,%d}$`, n)) }
-	reAlnumOptMax      = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9]{0,%d}$`, n)) }
-	reAlnumExtOptMax   = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9@._/#(),\\-\\s]{0,%d}$`, n)) }
-	reMobileStart      = regexp.MustCompile(`^(09|07)[0-9]{8,13}$`) // ensures total length 10-15
-	reEmail            = regexp.MustCompile(`^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$`)
-	reYN               = regexp.MustCompile(`^[YN]$`)
+	reAlphaExactMax  = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[A-Za-z]{1,%d}$`, n)) }
+	reAlphaOptMax    = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[A-Za-z]{0,%d}$`, n)) }
+	reNumExactMax    = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[0-9]{1,%d}$`, n)) }
+	reNumOptMax      = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[0-9]{0,%d}$`, n)) }
+	reAlnumExactMax  = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9]{1,%d}$`, n)) }
+	reAlnumOptMax    = func(n int) *regexp.Regexp { return regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9]{0,%d}$`, n)) }
+	reAlnumExtOptMax = func(n int) *regexp.Regexp {
+		return regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9@._/#(),\\-\\s]{0,%d}$`, n))
+	}
+	reMobileStart = regexp.MustCompile(`^(09|07)[0-9]{8,13}$`) // ensures total length 10-15
+	reEmail       = regexp.MustCompile(`^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$`)
+	reYN          = regexp.MustCompile(`^[YN]$`)
 )
 
 var reAmount = regexp.MustCompile(`^[0-9]{1,10}(\.[0-9]{1,2})?$`)
@@ -582,7 +584,7 @@ func (p *PaymentSDK) PreparePayment(b BuildPayload) (*PrepareResult, error) {
 	html := buildAutoSubmitHTML(p.gatewayURL, meID, merchantRequest, encryptedHash)
 
 	return &PrepareResult{
-		HTML:            html,
+		HTML: html,
 		//MerchantRequest: merchantRequest,
 		//Hash:            encryptedHash,
 		//EncryptInput:    encryptInput,
@@ -675,6 +677,15 @@ func (p *PaymentSDK) DecryptCallbackMap(in map[string]string) (map[string]string
 		out[k] = v
 	}
 
+	// helper to normalize "null" -> ""
+	norm := func(s string) string {
+		s = strings.TrimSpace(s)
+		if strings.EqualFold(s, "null") {
+			return ""
+		}
+		return s
+	}
+
 	for _, k := range encryptedCandidates {
 		if v, ok := in[k]; ok && strings.TrimSpace(v) != "" {
 			dec, err := p.DecryptFieldB64(v)
@@ -686,7 +697,74 @@ func (p *PaymentSDK) DecryptCallbackMap(in map[string]string) (map[string]string
 				}
 				continue
 			}
+
+			// put decrypted value into output
 			out[k] = dec
+
+			// If this is txn_response, try to parse subfields and set them in output
+			if k == "txn_response" {
+				// expected format (pipe-separated):
+				// ag_id|me_id|orderNo|amount|country|currency|date|time|transactionId|agNumber|status|static_qr_id|payment_link_receipt|finalAmount
+				tokens := strings.Split(dec, "|")
+
+				get := func(i int) string {
+					if i < 0 || i >= len(tokens) {
+						return ""
+					}
+					return norm(tokens[i])
+				}
+
+				// map tokens into named fields (use same key names your handlers/frontend expect)
+				if v := get(0); v != "" {
+					out["ag_id"] = v
+				}
+				if v := get(1); v != "" {
+					out["me_id"] = v
+				}
+				if v := get(2); v != "" {
+					out["orderNo"] = v
+				}
+				if v := get(3); v != "" {
+					out["amount"] = v
+				}
+				// country and currency are sometimes swapped in other systems; follow example mapping:
+				if v := get(4); v != "" {
+					out["country"] = v
+				}
+				if v := get(5); v != "" {
+					out["currency"] = v
+				}
+				datePart := get(6)
+				timePart := get(7)
+				if datePart != "" && timePart != "" {
+					out["dateAndTime"] = datePart + " " + timePart
+				} else if datePart != "" {
+					out["dateAndTime"] = datePart
+				}
+				if v := get(8); v != "" {
+					out["transactionId"] = v
+				}
+				if v := get(9); v != "" {
+					out["agNumber"] = v
+				}
+				if v := get(10); v != "" {
+					out["status"] = v
+				}
+				if v := get(11); v != "" {
+					out["static_qr_id"] = v
+				}
+				if v := get(12); v != "" {
+					out["payment_link_receipt"] = v
+				}
+				if v := get(13); v != "" {
+					out["finalAmount"] = v
+				}
+
+				if p.Debug {
+					log.Printf("Parsed txn_response tokens for orderNo=%s transactionId=%s status=%s\n",
+						out["orderNo"], out["transactionId"], out["status"])
+				}
+			}
 		}
 	}
 	return out, errs
