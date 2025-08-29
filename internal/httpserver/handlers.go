@@ -260,7 +260,7 @@ func (s *Server) PaymentCallback(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Build frontend URL and redirect immediately (frontend will poll /api/payment/result)
-		target := strings.TrimRight(frontendURL, "/") + "/payment/result?orderNo=" + url.QueryEscape(orderNo)
+		target := strings.TrimRight(frontendURL, "/") + "/api/payment/result?orderNo=" + url.QueryEscape(orderNo)
 		http.Redirect(w, r, target, http.StatusSeeOther)
 		return
 
