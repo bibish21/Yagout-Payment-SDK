@@ -117,7 +117,7 @@ func (s *Server) CreatePayment(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PaymentCallback(w http.ResponseWriter, r *http.Request) {
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:3003"
+		frontendURL = "https://go.dorira.com"
 	}
 
 	switch r.Method {
