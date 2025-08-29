@@ -109,11 +109,6 @@ func (s *Server) CreatePayment(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// PaymentCallback handles incoming callbacks from PG (server-to-server POST) and browser redirects.
-//   - POST: attempt to parse form values or JSON, decrypt encrypted fields, store result keyed by orderNo,
-//     and reply with JSON {"status":"ok"} for server callbacks.
-//   - GET: called when PG redirects the customer via browser. If orderNo query param present and we have
-//     a stored result, redirect the browser to FRONTEND_URL/payment/result?orderNo=... so frontend can fetch it.
 func (s *Server) PaymentCallback(w http.ResponseWriter, r *http.Request) {
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
@@ -126,13 +121,11 @@ func (s *Server) PaymentCallback(w http.ResponseWriter, r *http.Request) {
 		inMap := map[string]string{}
 		ct := r.Header.Get("Content-Type")
 
-		//log.Printf("incoming callback :%s", map[string]string{})
-
 		if strings.HasPrefix(ct, "application/json") {
 			var j map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&j); err != nil {
 				// fallback to parse form
-				r.ParseForm()
+				_ = r.ParseForm()
 			} else {
 				for k, v := range j {
 					if v == nil {
@@ -215,7 +208,39 @@ func (s *Server) PaymentCallback(w http.ResponseWriter, r *http.Request) {
 		s.store[orderNo] = out
 		s.mu.Unlock()
 
-		// respond to server callback (PG)
+		// Decide whether this POST looks like a browser redirect or a server callback.
+		// Browser POSTs typically have Accept: text/html, a browser User-Agent, and/or a Referer.
+		ua := strings.ToLower(r.Header.Get("User-Agent"))
+		accept := strings.ToLower(r.Header.Get("Accept"))
+		referer := r.Header.Get("Referer")
+		ctLower := strings.ToLower(ct)
+
+		isBrowser := false
+		if strings.Contains(accept, "text/html") {
+			isBrowser = true
+		} else if ua != "" && (strings.Contains(ua, "mozilla") || strings.Contains(ua, "chrome") ||
+			strings.Contains(ua, "safari") || strings.Contains(ua, "firefox") || strings.Contains(ua, "edge")) {
+			// prefer form submissions for browser detection, but referer is also a strong sign
+			if strings.Contains(ctLower, "application/x-www-form-urlencoded") || strings.Contains(ctLower, "multipart/form-data") {
+				isBrowser = true
+			} else if referer != "" {
+				isBrowser = true
+			}
+		}
+
+		// Debug log showing detection result
+		log.Printf("isBrowserPost=%v orderNo=%s UA=%q Accept=%q Referer=%q Content-Type=%q", isBrowser, orderNo, r.Header.Get("User-Agent"), r.Header.Get("Accept"), referer, ct)
+
+		// Build frontend target (frontend will poll /api/payment/result)
+		target := strings.TrimRight(frontendURL, "/") + "/payment/result?orderNo=" + url.QueryEscape(orderNo)
+
+		if isBrowser {
+			// redirect the user's browser to frontend (so merchant UI can poll result)
+			http.Redirect(w, r, target, http.StatusSeeOther)
+			return
+		}
+
+		// Otherwise this is a server-to-server callback: respond with JSON ack expected by PG.
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"status": "ok", "orderNo": orderNo})
 		return
