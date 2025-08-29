@@ -221,55 +221,38 @@ func (s *Server) PaymentCallback(w http.ResponseWriter, r *http.Request) {
 		return
 
 	case http.MethodGet:
-		// browser redirect
+		// browser redirect — accept several param names and redirect immediately to frontend
 		q := r.URL.Query()
-		orderNo := q.Get("orderNo")
-		if orderNo == "" {
-			orderNo = q.Get("order_no")
-		}
+
+		// detect orderNo from many possible keys
+		orderNo := firstNonEmpty(q.Get("orderNo"), q.Get("order_no"), q.Get("orderId"), q.Get("order_id"), q.Get("transactionId"), q.Get("transaction_id"))
+
 		if orderNo == "" {
 			// nothing to do; show a simple page
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Write([]byte(`<html><body><h3>Payment callback received</h3><p>No orderNo provided. If you were redirected here from the payment gateway, your browser should be forwarded to the merchant frontend shortly.</p></body></html>`))
 			return
 		}
-		// if we have stored result, redirect to frontend for merchant UI
-		s.mu.RLock()
-		_, ok := s.store[orderNo]
-		s.mu.RUnlock()
-		if ok {
-			target := strings.TrimRight(frontendURL, "/") + "/payment/result?orderNo=" + url.QueryEscape(orderNo)
-			http.Redirect(w, r, target, http.StatusSeeOther)
-			return
-		}
-		// not found yet: show a waiting page that will poll backend result endpoint
-		waitHTML := `<html><head><meta charset="utf-8"><title>Processing payment...</title></head><body>
-<h3>Please wait — processing payment result</h3>
-<div id="status">Waiting for server callback...</div>
-<script>
-(function(){
-  var orderNo = "` + htmlEscape(orderNo) + `";
-  var poll = function(){
-    fetch("/api/payment/result?orderNo="+encodeURIComponent(orderNo)).then(function(res){ return res.json(); }).then(function(j){
-      if (j && j.status) {
-        // redirect to frontend with orderNo
-        window.location = "` + strings.TrimRight(frontendURL, "/") + `/payment/result?orderNo=" + encodeURIComponent(orderNo);
-      } else {
-        setTimeout(poll, 1000);
-      }
-    }).catch(function(){ setTimeout(poll, 1000); });
-  };
-  poll();
-})();
-</script></body></html>`
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(waitHTML))
+
+		// Build frontend URL and redirect immediately (frontend will poll /api/payment/result)
+		target := strings.TrimRight(frontendURL, "/") + "/payment/result?orderNo=" + url.QueryEscape(orderNo)
+		http.Redirect(w, r, target, http.StatusSeeOther)
 		return
 
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+}
+
+// return the first non-empty string from arguments
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // PaymentResult returns stored decrypted callback payload by orderNo as JSON.
