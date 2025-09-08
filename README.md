@@ -1,5 +1,5 @@
 <<<<<<< HEAD
-# Go Backend
+# Go Backend Hosted checkout
 
 ## Run
 ```bash
